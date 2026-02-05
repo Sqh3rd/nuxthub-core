@@ -354,25 +354,22 @@ async function setupDatabaseClient(nuxt: Nuxt, hub: ResolvedHubConfig) {
     : `
 const tables = extractTablesFromSchema(schema)
 const deepRelations = Object.keys(schema)
-  .map(it => it as keyof typeof schema)
   .filter(it => !(it in tables))
-  .reduce((prev, cur) => ({ ...prev, [cur]: schema[cur] }), {} as Omit<typeof schema, keyof typeof tables>)
+  .reduce((prev, cur) => ({ ...prev, [cur]: schema[cur] }), {})
 const mainRelation = defineRelationsPart(schema)
-type Flatten<T extends object> = T[keyof T] & T[keyof T]
-type Relations = (typeof mainRelation) & Flatten<typeof deepRelations>
 const flatRelations = Object.keys(deepRelations)
-  .map(it => it as keyof typeof deepRelations)
-  .reduce((prev, cur) => ({ ...prev, ...deepRelations[cur] }), {} as Flatten<typeof deepRelations>)
+  .reduce((prev, cur) => ({ ...prev, ...deepRelations[cur] }), {})
 const relations = { ...mainRelation, ...flatRelations }
 `
   const relationsOption = !useRelationsV2 ? '' : ', relations'
   const schemaOption = !useRelationsV2 ? 'schema' : 'schema: tables'
+  const schemaExport = !useRelationsV2 ? 'schema' : 'tables as schema'
   const casingOption = casing ? `, casing: '${casing}'` : ''
   let drizzleOrmContent = `import { drizzle } from 'drizzle-orm/${driver}'${relationsImport}
 import * as schema from './db/schema.mjs'
 ${relationsOperations}
 const db = drizzle({ connection: ${JSON.stringify(connection)}, ${schemaOption}${modeOption}${casingOption}${relationsOption} })
-export { db, ${schemaOption} }
+export { db, ${schemaExport} }
 `
 
   if (driver === 'pglite' && nuxt.options.dev) {
@@ -383,7 +380,7 @@ import * as schema from './db/schema.mjs'
 ${relationsOperations}
 const client = new PGlite(${JSON.stringify(connection.dataDir)})
 const db = drizzle({ client, ${schemaOption}${casingOption}${relationsOption} })
-export { db, ${schemaOption}, client }
+export {db, ${schemaExport}, client }
 `
 
     addServerHandler({
@@ -412,7 +409,7 @@ const replicaConnections = replicaUrls.map(replicaUrl => {
 })
 const db = withReplicas(primary, replicaConnections)`
   : `const db = drizzle({ client, ${schemaOption}${casingOption}${relationsOption} })`}
-export { db, ${schemaOption} }
+export {db, ${schemaExport} }
 `
   }
   if (driver === 'mysql2' && nuxt.options.dev) {
@@ -431,7 +428,7 @@ const replicaConnections = replicaUrls.map(replicaUrl => {
   return drizzle({ connection: { uri: replicaUrl }, ${schemaOption}${modeOption}${casingOption}${relationsOption} })
 })
 const db = withReplicas(primary, replicaConnections)
-export { db, ${schemaOption} }
+export {db, ${schemaExport} }
 `
     }
   }
@@ -508,7 +505,7 @@ async function d1HttpDriver(sql, params, method) {
 
 const db = drizzle(d1HttpDriver, { ${schemaOption}${casingOption}${relationsOption} })
 
-export { db, ${schemaOption} }
+export {db, ${schemaExport} }
 `
   }
   if (['postgres-js', 'mysql2'].includes(driver) && hub.hosting.includes('cloudflare') && connection?.hyperdriveId) {
